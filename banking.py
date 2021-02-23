@@ -59,6 +59,16 @@ class BankAccount:
         self._checksum = str([0 if self._checksum % 10 == 0 else 10 - self._checksum % 10][0])
         self.card_number += self._checksum
 
+    @staticmethod
+    def check_card_no(cardno):
+        checksum = int(str(cardno)[-1])
+        cardno = [int(char) for char in str(cardno)[:-1]]
+        cardno = [k*2 if i%2==0 else k for i,k in enumerate(cardno,0)]
+        cardno = [number-9 if number>9 else number for number in cardno]
+        if (sum(cardno)+checksum) % 10 == 0:
+            return True
+        return False
+
     def create_card_pin(self):
         self.card_pin = str(random.randint(0, 9999)).zfill(4)
 
@@ -82,25 +92,33 @@ class BankAccount:
         self.get_balance()
         print("Transfer")
         target_account = input("Enter card number:")
-        money_to_be_transferred = int(input("Enter how much money you want to transfer:"))
-        if self.balance > money_to_be_transferred:
-            # Deducting Host Balance
-            self.balance -= money_to_be_transferred
-            self.cur.execute("update card set balance = ? where number =?",
-                             (self.balance, self.entered_card_number))
-            self.conn.commit()
-            # Adding recipient Balance
-            target_account_balance = self.cur.execute("select balance from card where number = ?",
-                                                      (target_account,)).fetchone()
-            target_account_balance += money_to_be_transferred
-            self.cur.execute("update card set balance = ? where number =?",
-                             (target_account_balance, target_account))
-            self.conn.commit()
-            print("Success!")
-
+        existing_account = self.cur.execute("select number from card").fetchall()
+        if self.check_card_no(target_account):
+            if target_account in existing_account:
+                money_to_be_transferred = int(input("Enter how much money you want to transfer:"))
+                if self.balance > money_to_be_transferred:
+                    # Deducting Host Balance
+                    self.balance -= money_to_be_transferred
+                    self.cur.execute("update card set balance = ? where number =?",
+                                     (self.balance, self.entered_card_number))
+                    self.conn.commit()
+                    # Adding recipient Balance
+                    target_account_balance = self.cur.execute("select balance from card where number = ?",
+                                                              (target_account,)).fetchone()
+                    target_account_balance += money_to_be_transferred
+                    self.cur.execute("update card set balance = ? where number =?",
+                                     (target_account_balance, target_account))
+                    self.conn.commit()
+                    print("Success!")
+                    self.account_menu()
+                else:
+                    print("Not enough money!")
+                    self.account_menu()
+            else:
+                print("Such a card does not exist.")
+                self.account_menu()
         else:
-            print("Not enough money!")
-            self.account_menu()
+            print("Probably you made a mistake in the card number. Please try again!")
 
     def credential_check(self, card_no, pin_no):
         self.cur.execute("select number from card")
@@ -161,6 +179,7 @@ class BankAccount:
             self.main_menu()
         elif self.answer == 0:
             print("Bye!")
+            exit()
             self.close_db()
         else:
             self.account_menu()
